@@ -1,4 +1,5 @@
 use itertools::{FoldWhile, Itertools};
+use num_integer::lcm;
 use std::collections::HashMap;
 
 advent_of_code::solution!(8);
@@ -49,7 +50,7 @@ pub fn part_one(input: &str) -> Option<u32> {
     )
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
+pub fn part_two(input: &str) -> Option<usize> {
     let (directions, node_lines) = input.split_once("\n\n").unwrap();
     let node_lines = node_lines.lines().map(str::as_bytes).collect_vec();
     let nodes: HashMap<_, _> = node_lines
@@ -65,8 +66,7 @@ pub fn part_two(input: &str) -> Option<u32> {
         })
         .collect();
 
-    println!(
-        "Just use Wolframalpha with the following input:\nleast common multiple of {}",
+    Some(
         node_lines
             .iter()
             .filter(|line| line[2] == b'A')
@@ -91,11 +91,11 @@ pub fn part_two(input: &str) -> Option<u32> {
                         }
                     })
                     .into_inner()
-                    .0
+                    .0 as u64
             })
-            .join(" ")
-    );
-    Some(0)
+            .reduce(|acc, curr| lcm(acc, curr))
+            .unwrap() as usize,
+    )
 }
 
 #[cfg(test)]
@@ -111,6 +111,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, Some(0));
+        assert_eq!(result, Some(6));
     }
 }
