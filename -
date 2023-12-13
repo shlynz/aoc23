@@ -1,0 +1,104 @@
+use itertools::Itertools;
+
+advent_of_code::solution!(13);
+
+#[derive(Debug)]
+struct Pattern {
+    pattern: Vec<Vec<char>>,
+}
+
+impl Pattern {
+    fn transpose(&self) -> Self {
+        let mut result = Vec::new();
+        for col_nr in 0..self.pattern[0].len() {
+            let mut line = Vec::new();
+            for row_nr in 0..self.pattern.len() {
+                line.push(self.pattern[row_nr][col_nr]);
+            }
+            result.push(line);
+        }
+        Pattern { pattern: result }
+    }
+
+    fn print(&self) {
+        self.pattern
+            .iter()
+            .for_each(|line| println!("{}", line.iter().collect::<String>()))
+    }
+
+    fn get_symmetry_score(&self) -> usize {
+        /*
+        self.print();
+        println!("");
+        self.transpose().print();
+        println!("");
+        */
+        let mut result = 0;
+        if let Some(row) = self.get_horizontal_symmetry_pos() {
+            println!("row: {row}");
+            result += row * 100;
+        } else if let Some(col) = self.transpose().get_horizontal_symmetry_pos() {
+            println!("col: {col}");
+            result += col;
+        } else {
+            panic!("No symmetry found");
+        }
+        result
+    }
+
+    fn get_horizontal_symmetry_pos(&self) -> Option<usize> {
+        'MAIN: for index in 0..self.pattern.len() - 1 {
+            if self.pattern[index] == self.pattern[index + 1] {
+                for (first, second) in (0..index).rev().zip(index + 2..self.pattern.len() - 1) {
+                    if self.pattern[first].iter().collect::<String>()
+                        != self.pattern[second].iter().collect::<String>()
+                    {
+                        continue 'MAIN;
+                    }
+                }
+                return Some(index + 1);
+            }
+        }
+        None
+    }
+}
+
+pub fn part_one(input: &str) -> Option<usize> {
+    Some(
+        input
+            .split("\n\n")
+            .map(|pattern| Pattern {
+                pattern: pattern
+                    .lines()
+                    .map(|line| line.chars().collect_vec())
+                    .collect_vec(),
+            })
+            .map(|pattern| {
+                let result = pattern.get_symmetry_score();
+                println!("{result}");
+                result
+            })
+            .sum(),
+    )
+}
+
+pub fn part_two(input: &str) -> Option<u32> {
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_part_one() {
+        let result = part_one(&advent_of_code::template::read_file("examples", DAY));
+        assert_eq!(result, Some(405));
+    }
+
+    #[test]
+    fn test_part_two() {
+        let result = part_two(&advent_of_code::template::read_file("examples", DAY));
+        assert_eq!(result, None);
+    }
+}
