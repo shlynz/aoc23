@@ -38,6 +38,17 @@ impl<'a> Rule<'a> {
             _ => unreachable!(),
         }
     }
+
+    fn apply_range(&self, part_range: PartRange) -> ((&'a str, PartRange), (&'a str, PartRange)) {
+        match self.category {
+            'x' => part_range.x.apply(self),
+            'm' => part_range.m.apply(self),
+            'a' => part_range.a.apply(self),
+            's' => part_range.s.apply(self),
+            _ => unreachable!(),
+        };
+        unimplemented!()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +64,13 @@ impl<'a> RuleCategory<'a> {
         } else {
             self.fallthrough
         }
+    }
+
+    fn apply_range(&self, part_range: PartRange) -> HashMap<&str, PartRange> {
+        for rule in self.rules.iter() {
+            println!("{rule:?}");
+        }
+        HashMap::new()
     }
 }
 
@@ -76,6 +94,11 @@ impl<'a> Rules<'a> {
             unreachable!()
         }
     }
+
+    fn apply_range(&self, starting_rule_name: &'a str, part_range: PartRange) {
+        let starting_rule = self.rules.get(starting_rule_name).unwrap();
+        starting_rule.apply_range(part_range);
+    }
 }
 
 #[derive(Debug)]
@@ -84,6 +107,90 @@ struct Part {
     m: usize,
     a: usize,
     s: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Range {
+    start: usize,
+    end: usize,
+}
+
+impl Range {
+    fn new() -> Range {
+        Range {
+            start: usize::MIN,
+            end: usize::MAX,
+        }
+    }
+
+    fn apply(&self, rule: &Rule) -> (Range, Range) {
+        match rule.comparison_type {
+            std::cmp::Ordering::Less => {
+                let catch = if self.end > rule.comparison {
+                    Range {
+                        start: self.start,
+                        end: rule.comparison - 1,
+                    }
+                } else {
+                    self.clone()
+                };
+                let fallthrough = Range {
+                    start: catch.end,
+                    end: self.end,
+                };
+                (catch, fallthrough)
+            }
+            std::cmp::Ordering::Greater => {
+                let catch = if self.start < rule.comparison {
+                    Range {
+                        start: rule.comparison + 1,
+                        end: self.end,
+                    }
+                } else {
+                    self.clone()
+                };
+                let fallthrough = Range {
+                    start: self.start,
+                    end: catch.start,
+                };
+                (catch, fallthrough)
+            }
+            std::cmp::Ordering::Equal => unreachable!(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PartRange {
+    x: Range,
+    m: Range,
+    a: Range,
+    s: Range,
+}
+
+impl PartRange {
+    fn new() -> PartRange {
+        PartRange {
+            x: Range::new(),
+            m: Range::new(),
+            a: Range::new(),
+            s: Range::new(),
+        }
+    }
+
+    fn apply(&self, rule: Rule) -> (PartRange, PartRange) {
+        match rule.category {
+            'x' => unimplemented!(),
+            'm' => unimplemented!(),
+            'a' => unimplemented!(),
+            's' => {
+                let new_range = self.s.apply(&rule);
+                println!("{new_range:?}");
+                (PartRange::new(), PartRange::new())
+            }
+            _ => unimplemented!(),
+        }
+    }
 }
 
 impl Part {
@@ -179,20 +286,12 @@ pub fn part_one(input: &str) -> Option<usize> {
 pub fn part_two(input: &str) -> Option<usize> {
     let (rules, _) = parse(input);
     rules.rules.iter().for_each(|rule| println!("{rule:?}"));
+    let start_part = PartRange::new();
     println!("----------");
-    Some(
-        (0..4)
-            .map(|_| 0..=4000)
-            .multi_cartesian_product()
-            .map(|vals| Part {
-                x: vals[0],
-                m: vals[1],
-                a: vals[2],
-                s: vals[3],
-            })
-            .filter(|part| rules.apply(&"in", &part))
-            .count(),
-    )
+    println!("{start_part:?}");
+    println!("----------");
+    rules.apply_range(&"in", start_part);
+    Some(0)
 }
 
 #[cfg(test)]
