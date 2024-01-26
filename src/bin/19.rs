@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 
@@ -39,15 +39,62 @@ impl<'a> Rule<'a> {
         }
     }
 
-    fn apply_range(&self, part_range: PartRange) -> ((&'a str, PartRange), (&'a str, PartRange)) {
+    fn apply_range(&self, part_range: PartRange) -> (PartRange, PartRange) {
         match self.category {
-            'x' => part_range.x.apply(self),
-            'm' => part_range.m.apply(self),
-            'a' => part_range.a.apply(self),
-            's' => part_range.s.apply(self),
+            'x' => {
+                let (catch, fall) = part_range.x.apply(self);
+                (
+                    PartRange {
+                        x: catch,
+                        ..part_range
+                    },
+                    PartRange {
+                        x: fall,
+                        ..part_range
+                    },
+                )
+            }
+            'm' => {
+                let (catch, fall) = part_range.m.apply(self);
+                (
+                    PartRange {
+                        m: catch,
+                        ..part_range
+                    },
+                    PartRange {
+                        m: fall,
+                        ..part_range
+                    },
+                )
+            }
+            'a' => {
+                let (catch, fall) = part_range.a.apply(self);
+                (
+                    PartRange {
+                        a: catch,
+                        ..part_range
+                    },
+                    PartRange {
+                        a: fall,
+                        ..part_range
+                    },
+                )
+            }
+            's' => {
+                let (catch, fall) = part_range.s.apply(self);
+                (
+                    PartRange {
+                        s: catch,
+                        ..part_range
+                    },
+                    PartRange {
+                        s: fall,
+                        ..part_range
+                    },
+                )
+            }
             _ => unreachable!(),
-        };
-        unimplemented!()
+        }
     }
 }
 
@@ -64,13 +111,6 @@ impl<'a> RuleCategory<'a> {
         } else {
             self.fallthrough
         }
-    }
-
-    fn apply_range(&self, part_range: PartRange) -> HashMap<&str, PartRange> {
-        for rule in self.rules.iter() {
-            println!("{rule:?}");
-        }
-        HashMap::new()
     }
 }
 
@@ -95,9 +135,34 @@ impl<'a> Rules<'a> {
         }
     }
 
-    fn apply_range(&self, starting_rule_name: &'a str, part_range: PartRange) {
-        let starting_rule = self.rules.get(starting_rule_name).unwrap();
-        starting_rule.apply_range(part_range);
+    fn apply_range(
+        &self,
+        starting_rule_name: &'a str,
+        part_range: PartRange,
+    ) -> Vec<(PartRange, RuleResult)> {
+        let starting_rule_category = self.rules.get(starting_rule_name).unwrap();
+        let mut rule_category_to_check = vec![(starting_rule_category, part_range)];
+        let mut results = Vec::new();
+        while let Some((rule_category, range)) = rule_category_to_check.pop() {
+            let mut range = range;
+            for rule in rule_category.rules.iter() {
+                let (catch, fall) = rule.apply_range(range);
+                range = fall;
+                if let RuleResult::NextRule(destination) = rule.destination {
+                    let next_rule_category = self.rules.get(destination).unwrap();
+                    rule_category_to_check.push((next_rule_category, catch));
+                } else {
+                    results.push((catch, rule.destination));
+                }
+            }
+            if let RuleResult::NextRule(fallthrough_rule) = rule_category.fallthrough {
+                let fallthrough_rule_category = self.rules.get(fallthrough_rule).unwrap();
+                rule_category_to_check.push((fallthrough_rule_category, range));
+            } else {
+                results.push((range.clone(), rule_category.fallthrough));
+            }
+        }
+        results
     }
 }
 
@@ -109,7 +174,7 @@ struct Part {
     s: usize,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Range {
     start: usize,
     end: usize,
@@ -118,8 +183,8 @@ struct Range {
 impl Range {
     fn new() -> Range {
         Range {
-            start: usize::MIN,
-            end: usize::MAX,
+            start: 1,
+            end: 4001,
         }
     }
 
@@ -129,7 +194,7 @@ impl Range {
                 let catch = if self.end > rule.comparison {
                     Range {
                         start: self.start,
-                        end: rule.comparison - 1,
+                        end: rule.comparison,
                     }
                 } else {
                     self.clone()
@@ -158,9 +223,13 @@ impl Range {
             std::cmp::Ordering::Equal => unreachable!(),
         }
     }
+
+    fn count(&self) -> usize {
+        self.end - self.start
+    }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PartRange {
     x: Range,
     m: Range,
@@ -178,18 +247,8 @@ impl PartRange {
         }
     }
 
-    fn apply(&self, rule: Rule) -> (PartRange, PartRange) {
-        match rule.category {
-            'x' => unimplemented!(),
-            'm' => unimplemented!(),
-            'a' => unimplemented!(),
-            's' => {
-                let new_range = self.s.apply(&rule);
-                println!("{new_range:?}");
-                (PartRange::new(), PartRange::new())
-            }
-            _ => unimplemented!(),
-        }
+    fn count(&self) -> usize {
+        self.x.count() * self.m.count() * self.a.count() * self.s.count()
     }
 }
 
@@ -270,9 +329,6 @@ fn parse(input: &str) -> (Rules, Vec<Part>) {
 
 pub fn part_one(input: &str) -> Option<usize> {
     let (rules, parts) = parse(input);
-    rules.rules.iter().for_each(|rule| println!("{rule:?}"));
-    println!("----------");
-    parts.iter().for_each(|part| println!("{part:?}"));
 
     Some(
         parts
@@ -285,13 +341,25 @@ pub fn part_one(input: &str) -> Option<usize> {
 
 pub fn part_two(input: &str) -> Option<usize> {
     let (rules, _) = parse(input);
-    rules.rules.iter().for_each(|rule| println!("{rule:?}"));
     let start_part = PartRange::new();
-    println!("----------");
-    println!("{start_part:?}");
-    println!("----------");
-    rules.apply_range(&"in", start_part);
-    Some(0)
+    let results = rules.apply_range(&"in", start_part);
+
+    Some(
+        results
+            .iter()
+            .map(|(part_range, result)| {
+                let res = match result {
+                    RuleResult::FinalStatus(val) => *val,
+                    _ => unreachable!(),
+                };
+                (part_range, res)
+            })
+            .filter(|(_, result)| *result)
+            .map(|(part_range, _)| part_range)
+            .dedup()
+            .map(|part_range| part_range.count())
+            .sum(),
+    )
 }
 
 #[cfg(test)]
