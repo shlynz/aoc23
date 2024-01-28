@@ -1,6 +1,6 @@
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    isize, usize,
+    collections::{HashMap, HashSet},
+    isize, result, usize,
 };
 
 use itertools::Itertools;
@@ -11,27 +11,11 @@ advent_of_code::solution!(21);
 struct Coords {
     x: isize,
     y: isize,
-    unwrapped_x: isize,
-    unwrapped_y: isize,
 }
 
 impl Coords {
     fn new(x: isize, y: isize) -> Self {
-        Coords {
-            x,
-            y,
-            unwrapped_x: x,
-            unwrapped_y: y,
-        }
-    }
-
-    fn new_wrapped(x: isize, y: isize, original_x: isize, original_y: isize) -> Self {
-        Coords {
-            x,
-            y,
-            unwrapped_x: original_x,
-            unwrapped_y: original_y,
-        }
+        Coords { x, y }
     }
 }
 
@@ -78,32 +62,23 @@ impl Grid {
     }
 
     fn wrap(&self, coords: Coords) -> Coords {
-        let mut wrapped = false;
         let max_x = self.get_max_x();
         let new_x = if coords.x < 0 {
-            wrapped = true;
             coords.x + max_x
         } else if coords.x >= max_x {
-            wrapped = true;
             coords.x - max_x
         } else {
             coords.x
         };
         let max_y = self.get_max_y();
         let new_y = if coords.y < 0 {
-            wrapped = true;
             coords.y + max_y
         } else if coords.y >= max_y {
-            wrapped = true;
             coords.y - max_y
         } else {
             coords.y
         };
-        if wrapped {
-            Coords::new_wrapped(new_x, new_y, coords.unwrapped_x, coords.unwrapped_y)
-        } else {
-            coords
-        }
+        Coords::new(new_x, new_y)
     }
 
     fn check_valid(&self, coords: Coords) -> bool {
@@ -144,8 +119,6 @@ impl std::ops::Add for Coords {
         Coords {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
-            unwrapped_x: self.unwrapped_x + rhs.unwrapped_x,
-            unwrapped_y: self.unwrapped_y + rhs.unwrapped_y,
         }
     }
 }
@@ -188,32 +161,37 @@ pub fn part_one(input: &str) -> Option<usize> {
 
 pub fn part_two(input: &str) -> Option<usize> {
     let grid = Grid::from(input);
-    let mut seen: HashSet<State> = HashSet::new();
-    let mut to_check: Vec<State> = Vec::new();
-    let mut result: HashSet<Coords> = HashSet::new();
+
+    // practically stolen from github.com/LennardKittner/AOC23...
+    let mut queue = HashSet::new();
+    let mut result = HashMap::new();
+    let mut next_queue = HashSet::new();
 
     let starting_coords = grid.get_coords('S').unwrap();
-    to_check.push(State {
-        coords: starting_coords,
-        steps_taken: 0,
-    });
-    while let Some(state) = to_check.pop() {
-        if state.steps_taken == 26501365 {
-            result.insert(state.coords);
-            continue;
-        }
-        if seen.contains(&state) {
-            continue;
-        }
-        seen.insert(state);
-        for adjacent in grid.get_adjacent(state.coords, true) {
-            to_check.push(State {
-                coords: adjacent,
-                steps_taken: state.steps_taken + 1,
-            });
+    result.insert(starting_coords, 0);
+    next_queue.insert(starting_coords);
+    for step in 1..=1000 {
+        queue.extend(next_queue.drain());
+        for curr in queue.drain() {
+            for adjacent in grid.get_adjacent(curr, false) {
+                if !result.contains_key(&adjacent) {
+                    next_queue.insert(adjacent);
+                    result.insert(adjacent, step);
+                }
+            }
         }
     }
-    Some(result.len())
+
+    let even_corners = result.values().filter(|&&v| v % 2 == 0 && v > 65).count();
+    let odd_corners = result.values().filter(|&&v| v % 2 == 1 && v > 65).count();
+    let even_total = result.values().filter(|&&v| v % 2 == 0).count();
+    let odd_total = result.values().filter(|&&v| v % 2 == 1).count();
+
+    let n = 202300;
+    Some(
+        ((n + 1) * (n + 1)) * odd_total + (n * n) * even_total - (n + 1) * odd_corners
+            + n * even_corners,
+    )
 }
 
 #[cfg(test)]
