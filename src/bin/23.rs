@@ -77,7 +77,7 @@ impl Coordinates {
 
 impl Display for Coordinates {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "x: {}, y: {}", self.x, self.y)
+        write!(f, "x: {:2}, y: {:2}", self.x, self.y)
     }
 }
 
@@ -280,15 +280,88 @@ pub fn part_one(input: &str) -> Option<isize> {
     None
 }
 
+fn get_junction_coords(grid: &Grid<char>) -> Vec<Coordinates> {
+    let mut junctions = Vec::new();
+    for x in grid.min_x..=grid.max_x {
+        for y in grid.min_y..=grid.max_y {
+            let curr_coord = Coordinates { x, y };
+            if grid.get(&curr_coord).unwrap_or('#') != '#'
+                && grid.get_adjacent(curr_coord, true).len() > 2
+            {
+                junctions.push(curr_coord);
+            }
+        }
+    }
+    let end_coords = grid.find_last('.').unwrap();
+    junctions.push(end_coords);
+
+    junctions
+}
+
+struct Edge {
+    from: Coordinates,
+    to: Coordinates,
+    weight: usize,
+}
+
+impl Display for Edge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}\t->\t{},\tcosts: {}", self.from, self.to, self.weight)
+    }
+}
+
+fn get_simple_graph(grid: Grid<char>) {
+    let junctions = get_junction_coords(&grid);
+    junctions.iter().for_each(|j| println!("{j}"));
+    let mut edges = Vec::new();
+
+    struct State {
+        coords: Coordinates,
+        steps: usize,
+        last_junction: Coordinates,
+    }
+    let mut to_check = Vec::new();
+    let mut seen = HashSet::new();
+    let start_coords = grid.find_first('.').unwrap();
+    to_check.push(State {
+        coords: start_coords,
+        steps: 1,
+        last_junction: start_coords,
+    });
+    seen.insert(start_coords);
+    while let Some(state) = to_check.pop() {
+        for (_, coords) in grid.get_adjacent(state.coords, false) {
+            let mut last_junction = state.last_junction;
+            let mut steps = state.steps + 1;
+            if junctions.contains(&coords) && steps > 2 {
+                edges.push(Edge {
+                    from: last_junction,
+                    to: coords,
+                    weight: steps,
+                });
+                last_junction = coords;
+                steps = 0;
+            }
+            if seen.contains(&coords) {
+                continue;
+            }
+            to_check.push(State {
+                coords: coords.clone(),
+                steps,
+                last_junction,
+            });
+            seen.insert(coords);
+        }
+    }
+
+    edges.iter().for_each(|edge| println!("{edge}"));
+}
+
 pub fn part_two(input: &str) -> Option<isize> {
     let grid: Grid<char> = Grid::from(input);
     println!("{grid}");
 
-    if let (Some(start_coords), Some(end_coords)) = (grid.find_first('.'), grid.find_last('.')) {
-        if let Some(result) = grid.dijkstra(&start_coords, &end_coords, -1, true) {
-            return Some(result.abs());
-        }
-    };
+    get_simple_graph(grid);
     None
 }
 
