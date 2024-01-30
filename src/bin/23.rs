@@ -169,30 +169,16 @@ impl Grid<char> {
 
         to_check.push(std::cmp::Reverse((0, Direction::Down, *start, Vec::new())));
 
-        // for _ in 0..250 {
         while let Some(std::cmp::Reverse((score, last_dir, coords, prev_visited))) = to_check.pop()
         {
-            /*
-            if let Some(std::cmp::Reverse((score, last_dir, coords, prev_visited))) = to_check.pop()
-            {
-                println!("{score}, {last_dir:?}, {coords}, {prev_visited:?}");
-                */
-            if &coords == end {
-                println!("{score}, {last_dir:?}");
-                //println!("{prev_visited:?}")
-            }
             if prev_visited.contains(&coords) {
-                //println!("{score}, {last_dir:?}, {coords}");
-                //prev_visited.iter().for_each(|val| println!("{val}"));
                 continue;
             }
             if let Some(&prev_best) = costs.get(&coords).or(Some(&isize::MAX)) {
                 if prev_best > score {
-                    //continue;
                     costs.insert(coords, score);
                 }
             }
-            //costs.insert(coords, score);
             let mut next_visited = prev_visited.clone();
             next_visited.push(coords);
             self.get_adjacent(coords, part2)
@@ -208,7 +194,6 @@ impl Grid<char> {
                 });
         }
 
-        //costs.iter().for_each(|val| println!("{val:?}"));
         if let Some(&score) = costs.get(&end) {
             Some(score)
         } else {
@@ -310,9 +295,13 @@ impl Display for Edge {
     }
 }
 
-fn get_simple_graph(grid: Grid<char>) {
+struct Neighbour {
+    coords: Coordinates,
+    weight: usize,
+}
+
+fn get_simple_graph(grid: &Grid<char>) -> HashMap<Coordinates, Vec<Neighbour>> {
     let junctions = get_junction_coords(&grid);
-    junctions.iter().for_each(|j| println!("{j}"));
     let mut edges = Vec::new();
 
     struct State {
@@ -354,15 +343,87 @@ fn get_simple_graph(grid: Grid<char>) {
         }
     }
 
-    edges.iter().for_each(|edge| println!("{edge}"));
+    let mut nodes: HashMap<Coordinates, Vec<Neighbour>> = HashMap::new();
+    edges.iter().for_each(|edge| {
+        if let Some(neighbours) = nodes.get_mut(&edge.from) {
+            neighbours.push(Neighbour {
+                coords: edge.to,
+                weight: edge.weight,
+            });
+        } else {
+            nodes.insert(
+                edge.from,
+                vec![Neighbour {
+                    coords: edge.to,
+                    weight: edge.weight,
+                }],
+            );
+        }
+        if let Some(neighbours) = nodes.get_mut(&edge.to) {
+            neighbours.push(Neighbour {
+                coords: edge.from,
+                weight: edge.weight,
+            });
+        } else {
+            nodes.insert(
+                edge.to,
+                vec![Neighbour {
+                    coords: edge.from,
+                    weight: edge.weight,
+                }],
+            );
+        }
+    });
+
+    nodes
 }
 
-pub fn part_two(input: &str) -> Option<isize> {
+fn search_simple_graph(
+    current: Coordinates,
+    visited: &mut Vec<Coordinates>,
+    graph: &HashMap<Coordinates, Vec<Neighbour>>,
+    steps: usize,
+    end: Coordinates,
+) -> usize {
+    if current == end {
+        steps
+    } else {
+        let mut visited_clone = visited.clone();
+        visited_clone.push(current);
+        let mut results = vec![0];
+        for neighbour in graph
+            .get(&current)
+            .unwrap()
+            .iter()
+            .filter(|n| !visited.contains(&n.coords))
+        {
+            results.push(search_simple_graph(
+                neighbour.coords,
+                &mut visited_clone.clone(),
+                graph,
+                steps + neighbour.weight,
+                end,
+            ));
+        }
+        *results.iter().max().unwrap()
+    }
+}
+
+pub fn part_two(input: &str) -> Option<usize> {
     let grid: Grid<char> = Grid::from(input);
     println!("{grid}");
 
-    get_simple_graph(grid);
-    None
+    let graph = get_simple_graph(&grid);
+
+    Some(
+        search_simple_graph(
+            grid.find_first('.').unwrap(),
+            &mut Vec::new(),
+            &graph,
+            0,
+            grid.find_last('.').unwrap(),
+        ) - 1,
+    )
 }
 
 #[cfg(test)]
